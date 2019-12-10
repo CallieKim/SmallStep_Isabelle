@@ -1,0 +1,133 @@
+theory SmallStep imports Main
+begin
+
+(*Toy language*)
+datatype tm = C nat | P tm tm (*Constant | Plus*)
+
+term C (*nat \<Rightarrow> tm*)
+term P (*tm \<Rightarrow> tm \<Rightarrow> tm*)
+
+(*standard evaluator written in big step style*)
+(*recursive function*)
+primrec evalF :: "tm \<Rightarrow> nat" where
+"evalF (C n) = n" |
+"evalF (P a1 a2) = evalF a1 + evalF a2"
+
+term evalF (*tm \<Rightarrow> nat*)
+value "evalF (C 5)"
+
+inductive 
+  step :: "tm \<Rightarrow> tm \<Rightarrow> bool" (infix "\<longrightarrow>" 40)
+  where
+  ST_PlusConstConst : "P (C n1) (C n2) \<longrightarrow> C (n1 + n2)" |
+  ST_Plus1 : "t1 \<longrightarrow> t1' \<Longrightarrow> P t1 t2 \<longrightarrow> P t1' t2" |
+  ST_Plus2 : "t2 \<longrightarrow> t2' \<Longrightarrow> P (C n1) t2 \<longrightarrow> P (C n1) t2'"
+
+(*
+lemma Example1 [simp]: "P (P (C 0) (C 3)) (P (C 2) (C 4)) \<longrightarrow> P (C (0 + 3)) (P (C 2) (C 4))"
+  apply(rule ST_Plus1)
+  apply(rule ST_PlusConstConst)
+  done
+*)
+
+(*relation r*)
+consts r :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
+(*
+definition deterministic {X : Type} (R : relation X) :=
+  forall x y1 y2 : X, R x y1 -> R x y2 -> y1 = y2.
+*)
+(*
+definition deterministics:: "'a \<Rightarrow> 'a \<Rightarrow> bool" where
+    "\<forall>x y1 y2. r x y1 \<Longrightarrow> r x y2 \<Longrightarrow> y1 = y2"
+*)
+inductive 
+  vvalue :: "tm \<Rightarrow> bool"
+  where
+  v_const : "vvalue (C n)" 
+
+(*
+inductive
+  step :: "tm \<Rightarrow> tm \<Rightarrow> bool" (infix "\<longrightarrow>" 40)
+  where
+  ST_PlusConstConst :  "P (C n1) (C n2) \<longrightarrow> C (n1 + n2)" |
+  ST_Plus1 : "t1 \<longrightarrow> t1'\<Longrightarrow> P t1 t2 \<longrightarrow> P t1' t2" |
+  ST_Plus2 : "vvalue v1 \<Longrightarrow> t2 \<longrightarrow> t2' \<Longrightarrow> P v1 t2 \<longrightarrow> P v1 t2'"
+*)
+lemma Example1 [simp]: "P (P (C 0) (C 3)) (P (C 2) (C 4)) \<longrightarrow> P (C (0 + 3)) (P (C 2) (C 4))"
+  apply(rule ST_Plus1)
+  apply(rule ST_PlusConstConst)
+  done
+
+term step
+
+inductive_cases PlusConst[elim]: "P (C n1) (C n2) \<longrightarrow> t"
+thm PlusConst
+inductive_cases Plus1[elim!]: "P t1 t2 \<longrightarrow> t"
+thm Plus1
+inductive_cases Plus2[elim!]: "P v1 t2 \<longrightarrow> t"
+thm Plus2
+
+lemma deterministics:  "step x y1 \<Longrightarrow> step x y2 \<Longrightarrow> y1 = y2"
+proof(induction  arbitrary: y2 rule: step.induct)
+  case ST_PlusConstConst thus ?case 
+    apply(rule PlusConst)
+      apply force
+     apply(rule Plus1)
+    apply 
+    
+    
+    apply(erule FalseE)
+  apply 
+  case  ST_Plus1 thus ?case by apply(rule Plus1)
+      apply auto
+  case ST_Plus2 thus ?case by apply(rule Plus2)
+  next
+
+  apply(induction arbitrary: y2  rule: step.induct)
+    apply auto
+  done
+
+
+lemma strong_progress :  "(\<exists>t'. t \<longrightarrow> t')\<or> (vvalue t)"
+  induction t
+  
+
+inductive
+  multi :: "('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool"
+for R where
+multi_refl:  "multi R x x" |
+multi_step:  "R x y \<Longrightarrow> multi R y z \<Longrightarrow> multi R x z"
+
+abbreviation
+  steps :: "tm \<Rightarrow>tm \<Rightarrow> bool" (infix "\<rightarrow>*" 55)
+  where "t \<rightarrow>* t' == multi step t t'"
+(*
+lemma test_multistep_1[simp]: "P (P (C 0) (C 3)) (P (C 2) (C 4)) \<rightarrow>* C ((0 + 3) + (2 + 4))"
+  apply ((P (C (0 +3))(P (C 2) (C 4))
+  apply(multi_step : (P (C (0+3)) (P (C 2) (C 4))))
+*)
+
+lemma multi_trans:
+  "multi r x y \<Longrightarrow> multi r y z \<Longrightarrow> multi r x z"
+proof(induction rule: multi.induct)
+  case multi_refl thus ?case .
+next
+  case multi_step thus ?case by (metis multi.multi_step)
+qed
+
+lemmas multi_induct =  multi.induct[of "R:: tm \<Rightarrow> tm \<Rightarrow> bool", split_format(complete)]
+
+declare step.intros[simp,intro]
+declare multi.multi_refl[simp,intro]
+
+lemma multi_step1[simp, intro]: "R x y \<Longrightarrow> multi R x y"
+  by(metis multi.multi_refl multi.multi_step)
+code_pred multi .
+
+
+
+lemma deterministic:
+  "cs \<longrightarrow> cs' \<Longrightarrow> cs \<longrightarrow> cs'' \<Longrightarrow> cs'' = cs'"
+apply(induction arbitrary: cs'' rule: step.induct)
+apply blast+
+done
